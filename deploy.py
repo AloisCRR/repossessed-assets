@@ -7,7 +7,7 @@ if __name__ == "__main__":
     # `from_source` tells the worker where to get the code from.
     # `entrypoint` specifies the file and function to run.
     hello_world_flow.from_source(
-        source="https://github.com/YOUR_USERNAME/prefect-flows.git",
+        source="https://github.com/AloisCRR/repossessed-assets",
         entrypoint="my_first_flow.py:hello_world_flow",
     ).deploy(
         name="hello-world-github-deployment",
