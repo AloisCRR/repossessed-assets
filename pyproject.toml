@@ -6,6 +6,11 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "aiohttp>=3.13.2",
+    "marimo[recommended]>=0.17.7",
+    "playwright>=1.55.0",
     "prefect>=3.5.0",
     "requests>=2.32.5",
 ]
+
+[tool.marimo.runtime]
+dotenv = [".env"]

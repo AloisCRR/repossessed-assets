@@ -20,20 +20,16 @@ pull:
 
 # The deployments section defines one or more deployments.
 deployments:
-  - name: github-stats-yaml-deployment
-    description: A complex flow that fetches GitHub stats, deployed via YAML.
+  - name: global-bank-repossessed-assets-deployment
+    description: A flow that fetches Global Bank repossessed assets links, deployed via YAML.
     tags:
       - etl
-      - github
-      - tutorial
+      - scraping
+      - global-bank
     
     # This points to your flow file and function.
     # The path is relative to the root of your cloned repository.
-    entrypoint: my_complex_flow.py:github_stats_flow
-
-    # You can define default parameters here.
-    parameters:
-      username: "PrefectHQ"
+    entrypoint: global-bank.py:global_bank_repossessed_assets_links
       
     # This tells the deployment which work pool to use.
     # It MUST match the pool your worker is configured for.
