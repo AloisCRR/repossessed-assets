@@ -15,12 +15,15 @@ __generated_with = "0.17.7"
 app = marimo.App(width="columns", app_title="Global Bank Repossessed Assets")
 
 with app.setup:
-    import marimo as mo
-    from prefect import flow, task, get_run_logger
-    from playwright.async_api import async_playwright
+    import json
     import os
-    import aiohttp
     from typing import List, Set
+    from urllib.parse import quote_plus, urlencode
+
+    import aiohttp
+    import marimo as mo
+    from playwright.async_api import async_playwright
+    from prefect import flow, get_run_logger, task
 
 
 @app.function
@@ -31,26 +34,47 @@ async def fetch_all_urls():
     catalog_url = f"{base_url}/bienes-reposeidos/inmueble/catalogo"
 
     async with async_playwright() as p:
-        # Configure for browserless self-hosted
-        browser = await p.chromium.connect_over_cdp(
-            f"wss://{os.environ['BROWSERLESS_URL']}?stealth&blockAds&token={os.environ['BROWSERLESS_TOKEN']}"
+        launch = {
+            "headless": True,
+            "args": [
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                # "--single-process",
+            ],
+        }
+
+        query = {
+            "token": os.environ["BROWSERLESS_TOKEN"],
+            "stealth": "true",
+            "blockAds": "true",
+            "timeout": 600000,
+            "launch": json.dumps(launch),
+        }
+
+        ws = f"{os.environ['BROWSERLESS_URL']}?{urlencode(query, quote_via=quote_plus)}"
+
+        browser = await p.chromium.connect_over_cdp(ws)
+
+        # Create browser context with route registration
+        context = await browser.new_context()
+
+        # Performance optimizations on browser context
+        await context.route(
+            "**/*.{png,jpg,jpeg,gif,svg,css,woff,woff2,ttf}",
+            lambda route: route.abort(),
         )
 
         try:
             logger.info(f"Fetching URLs from {catalog_url}")
-            page = await browser.new_page()
 
-            # Performance optimizations
-            await page.route(
-                "**/*.{png,jpg,jpeg,gif,svg,css,font}",
-                lambda route: route.abort(),
-            )
+            page = await context.new_page()
 
             await page.goto(
                 catalog_url, timeout=30000, wait_until="domcontentloaded"
             )
 
             all_links = []
+
             current_page = 0
 
             while True:
@@ -69,6 +93,7 @@ async def fetch_all_urls():
 
                 # Look for next page button (rel="next")
                 next_button = page.locator('a[rel="next"]').first
+
                 count = await next_button.count()
 
                 if count == 0:
@@ -81,6 +106,10 @@ async def fetch_all_urls():
 
                 # Navigate to next page
                 next_url = f"{catalog_url}{next_href}"
+
+                await page.close()
+
+                page = await context.new_page()
 
                 await page.goto(
                     next_url, timeout=30000, wait_until="domcontentloaded"
@@ -101,6 +130,7 @@ async def fetch_all_urls():
             logger.error(f"Error fetching or parsing the catalog page: {e}")
             raise
         finally:
+            await context.close()
             await browser.close()
 
 
@@ -197,10 +227,8 @@ async def global_bank_repossessed_assets_links():
 
     # Compare and find differences
     new_links = list(scraped_links_set - existing_links)
-    old_links = list(existing_links - scraped_links_set)
 
     logger.info(f"Found {len(new_links)} new links to add")
-    logger.info(f"Found {len(old_links)} old links to remove")
 
     # Sync with Directus
     await add_new_links_to_directus(new_links)
