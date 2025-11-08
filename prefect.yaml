@@ -1,37 +1,52 @@
 # prefect.yaml
 
 # The pull section contains instructions for the worker at runtime.
-# This is the most important part for your use case.
 pull:
-  # Step 1: Clone the Git repository. We give it an ID to reference it later.
   - prefect.deployments.steps.git_clone:
       id: clone-repo
       repository: https://github.com/AloisCRR/repossessed-assets.git
-      # You can specify a branch if you want, otherwise it uses the default
-      # branch: main
+      branch: main
 
-  # Step 2: Install dependencies from requirements.txt.
-  # This step runs after the repository has been cloned.
   - prefect.deployments.steps.pip_install_requirements:
-      # Use the output from the 'clone-repo' step to specify the directory.
       directory: "{{ clone-repo.directory }}"
-      # The name of your requirements file.
       requirements_file: requirements.txt
 
-# The deployments section defines one or more deployments.
+# Definitions section for reusable configurations
+definitions:
+  work_pools:
+    local_pool: &local_pool
+      name: local-pool
+      work_queue_name: default
+
+  schedules:
+    hourly: &hourly
+      interval: 3600
+      timezone: "UTC"
+    
+    daily: &daily
+      interval: 86400
+      timezone: "UTC"
+    
+    weekly: &weekly
+      interval: 604800
+      timezone: "UTC"
+
+  tags:
+    scraping: &scraping_tags
+      - etl
+      - scraping
+
 deployments:
   - name: global-bank-repossessed-assets-deployment
     description: A flow that fetches Global Bank repossessed assets links, deployed via YAML.
-    tags:
-      - etl
-      - scraping
+    tags: 
+      - *scraping_tags
       - global-bank
-    
-    # This points to your flow file and function.
-    # The path is relative to the root of your cloned repository.
-    entrypoint: global-bank.py:global_bank_repossessed_assets_links
-      
-    # This tells the deployment which work pool to use.
-    # It MUST match the pool your worker is configured for.
-    work_pool:
-      name: local-pool
+    entrypoint: global-bank.py:global_bank_repossessed_assets
+    work_pool: *local_pool
+    # Add schedule here if needed, e.g.:
+    # schedule: *daily
+    # Add environment variables here if needed, e.g.:
+    # job_variables:
+    #   env:
+    #     GLOBAL_BANK_API_KEY: "{{ prefect.blocks.secret.global-bank-api-key }}"
