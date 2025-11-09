@@ -48,7 +48,20 @@ deployments:
     schedule: *daily
     concurrency_limit:
       limit: 5
+      collision_strategy: ENQUEUE
     # Add environment variables here if needed, e.g.:
     # job_variables:
     #   env:
     #     GLOBAL_BANK_API_KEY: "{{ prefect.blocks.secret.global-bank-api-key }}"
+
+  - name: banco-general-repossessed-assets-deployment
+    description: A flow that fetches Banco General repossessed assets links and scrapes property data, deployed via YAML.
+    tags: 
+      - *scraping_tags
+      - banco-general
+    entrypoint: banco-general.py:banco_general_repossessed_assets
+    work_pool: *local_pool
+    schedule: *daily
+    concurrency_limit:
+      limit: 5
+      collision_strategy: ENQUEUE
