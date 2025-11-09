@@ -13,6 +13,7 @@ dependencies = [
     "python-lsp-ruff>=2.3.0",
     "python-lsp-server>=1.13.1",
     "requests>=2.32.5",
+    "unidecode>=1.4.0",
     "websockets>=15.0.1",
 ]
 
