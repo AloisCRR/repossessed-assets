@@ -78,6 +78,18 @@ deployments:
       limit: 5
       collision_strategy: ENQUEUE
 
+  - name: banco-nacional-repossessed-assets-deployment
+    description: A flow that fetches Banco Nacional repossessed assets links and scrapes property data, deployed via YAML.
+    tags: 
+      - *scraping_tags
+      - banco-nacional
+    entrypoint: banco_nacional.py:banco_nacional_repossessed_assets
+    work_pool: *local_pool
+    schedule: *daily
+    concurrency_limit:
+      limit: 5
+      collision_strategy: ENQUEUE
+
   - name: reprocess-stale-links-deployment
     description: A flow that reprocesses stale repossessed assets links and updates property data, deployed via YAML.
     tags: 

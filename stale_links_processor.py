@@ -19,6 +19,7 @@ with app.setup:
     from caja_de_ahorros import scrape_property_page_caja_de_ahorros
     from banco_general import scrape_property_page_banco_general
     from global_bank import scrape_property_page_global_bank
+    from banco_nacional import scrape_property_page_banco_nacional
 
 
 @app.function
@@ -81,6 +82,10 @@ async def reprocess_stale_links():
                     )
                 elif company == "global-bank":
                     scraped_data = scrape_property_page_global_bank(
+                        link_to_scrape
+                    )
+                elif company == "banco-nacional":
+                    scraped_data = scrape_property_page_banco_nacional(
                         link_to_scrape
                     )
                 else:
