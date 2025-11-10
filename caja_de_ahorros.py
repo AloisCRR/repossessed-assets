@@ -45,9 +45,7 @@ with app.setup:
 )
 def fetch_all_urls():
     logger = get_run_logger()
-    catalog_url = (
-        "https://www.cajadeahorros.com.pa/propiedades/bienes-reposeidos/"
-    )
+    catalog_url = "https://www.cajadeahorros.com.pa/propiedades/bienes-reposeidos/"
 
     cookies = {
         "PORTAL-XSESSIONID": "1762648165.101.2206.779811|29e68a15732949f1942f74c137980c8c",
@@ -98,15 +96,11 @@ def fetch_all_urls():
                         all_properties_data = json.loads(match.group(1))
                         break
                     except json.JSONDecodeError as e:
-                        logger.error(
-                            f"Failed to parse allProperties JSON: {e}"
-                        )
+                        logger.error(f"Failed to parse allProperties JSON: {e}")
                         continue
 
         if not all_properties_data:
-            logger.error(
-                "Could not find allProperties variable in any script tag"
-            )
+            logger.error("Could not find allProperties variable in any script tag")
             raise Exception("allProperties variable not found")
 
         # Extract URLs from the properties data
@@ -165,9 +159,7 @@ def scrape_property_page_caja_de_ahorros(
         logger.info(f"Scraping property page: {url}")
 
         # Fetch the page content
-        response = requests.get(
-            url, cookies=cookies, headers=headers, timeout=120
-        )
+        response = requests.get(url, cookies=cookies, headers=headers, timeout=120)
         response.raise_for_status()
 
         soup = BeautifulSoup(response.content, "html.parser")
@@ -180,7 +172,7 @@ def scrape_property_page_caja_de_ahorros(
 
         if title_elem:
             title_text = title_elem.get_text(strip=True)
-            property_data["title"] = title_text
+            # property_data["title"] = title_text
 
             id_match = re.match(r"F\.\s*(\d+)", title_text)
 
@@ -217,9 +209,7 @@ def scrape_property_page_caja_de_ahorros(
             # Remove all characters except digits and dots
             price_clean = re.sub(r"[^\d.]", "", price_text)
             try:
-                property_data["price"] = (
-                    float(price_clean) if price_clean else None
-                )
+                property_data["price"] = float(price_clean) if price_clean else None
                 property_data["currency"] = "PAB"  # Panamanian Balboa
             except ValueError:
                 property_data["price"] = None
@@ -259,9 +249,7 @@ def scrape_property_page_caja_de_ahorros(
             area_text = details["area de construccion"]
             area_clean = re.sub(r"[^\d.]", "", area_text)
             try:
-                property_data["built_area"] = (
-                    float(area_clean) if area_clean else None
-                )
+                property_data["built_area"] = float(area_clean) if area_clean else None
             except ValueError:
                 pass
 
@@ -269,9 +257,7 @@ def scrape_property_page_caja_de_ahorros(
             area_text = details["metros del terreno"]
             area_clean = re.sub(r"[^\d.]", "", area_text)
             try:
-                property_data["area_m2"] = (
-                    float(area_clean) if area_clean else None
-                )
+                property_data["area_m2"] = float(area_clean) if area_clean else None
             except ValueError:
                 pass
 
@@ -294,9 +280,7 @@ def scrape_property_page_caja_de_ahorros(
 
         if "banos" in details:
             try:
-                property_data["bathrooms"] = int(
-                    round(float(details["banos"]))
-                )
+                property_data["bathrooms"] = int(round(float(details["banos"])))
             except ValueError:
                 pass
 
@@ -305,9 +289,7 @@ def scrape_property_page_caja_de_ahorros(
         if iframe_elem:
             src = iframe_elem.get("src", "")
             # Extract coordinates from URL like: https://maps.google.com/maps?q=8.373917,-80.1355&hl=es&z=14&output=embed
-            coord_match = re.search(
-                pattern=r"q=([-\d.]+),([-\d.]+)", string=src
-            )
+            coord_match = re.search(pattern=r"q=([-\d.]+),([-\d.]+)", string=src)
 
             if coord_match:
                 try:
@@ -323,7 +305,7 @@ def scrape_property_page_caja_de_ahorros(
                     pass
 
         # Extract amenities
-        amenities = soup.select("h3:contains('Amenidades') + ul li")
+        amenities = soup.select("h3:-soup-contains('Amenidades') + ul li")
 
         amenities_dict = {}
 
@@ -385,13 +367,9 @@ def scrape_property_page_caja_de_ahorros(
         #     if amenity_text:
         #         additional_attrs[amenity_text] = "true"
 
-        amenities_text = [
-            amenity.get_text(strip=True) for amenity in amenities
-        ]
+        amenities_text = [amenity.get_text(strip=True) for amenity in amenities]
 
-        additional_attrs["Amenidades"] = ", ".join(
-            filter(None, amenities_text)
-        )
+        additional_attrs["Amenidades"] = ", ".join(filter(None, amenities_text))
 
         property_data["additional_attrs"] = additional_attrs
 
@@ -449,9 +427,7 @@ async def caja_de_ahorros_repossessed_assets():
     logger.info("Link sync completed successfully")
 
     # Get unscraped links
-    unscraped_links = await get_unscraped_links_from_directus(
-        "caja-de-ahorros"
-    )
+    unscraped_links = await get_unscraped_links_from_directus("caja-de-ahorros")
 
     if not unscraped_links:
         logger.info("No unscraped links found")
@@ -466,9 +442,7 @@ async def caja_de_ahorros_repossessed_assets():
     for i in range(0, len(unscraped_links), batch_size):
         batch = unscraped_links[i : i + batch_size]
 
-        logger.info(
-            f"Processing batch {i // batch_size + 1}: {len(batch)} links"
-        )
+        logger.info(f"Processing batch {i // batch_size + 1}: {len(batch)} links")
 
         scraping_futures = scrape_property_page_caja_de_ahorros.map(batch)
 
@@ -493,15 +467,11 @@ async def caja_de_ahorros_repossessed_assets():
 
                             total_processed += 1
                         else:
-                            logger.warning(
-                                f"Failed to save data for link {link_id}"
-                            )
+                            logger.warning(f"Failed to save data for link {link_id}")
                     else:
                         logger.warning("No data scraped from successful task")
                 except Exception as e:
-                    logger.error(
-                        f"Error processing successful task result: {e}"
-                    )
+                    logger.error(f"Error processing successful task result: {e}")
             else:
                 # Handle failed tasks
                 logger.error(f"Task failed: {future.state}")

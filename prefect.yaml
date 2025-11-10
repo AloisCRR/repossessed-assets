@@ -42,7 +42,7 @@ deployments:
     tags: 
       - *scraping_tags
       - global-bank
-    entrypoint: global-bank.py:global_bank_repossessed_assets
+    entrypoint: global_bank.py:global_bank_repossessed_assets
     work_pool: *local_pool
     # Add schedule here if needed, e.g.:
     schedule: *daily
@@ -59,9 +59,33 @@ deployments:
     tags: 
       - *scraping_tags
       - banco-general
-    entrypoint: banco-general.py:banco_general_repossessed_assets
+    entrypoint: banco_general.py:banco_general_repossessed_assets
     work_pool: *local_pool
     schedule: *daily
     concurrency_limit:
       limit: 5
+      collision_strategy: ENQUEUE
+
+  - name: caja-de-ahorros-repossessed-assets-deployment
+    description: A flow that fetches Caja de Ahorros repossessed assets links and scrapes property data, deployed via YAML.
+    tags: 
+      - *scraping_tags
+      - caja-de-ahorros
+    entrypoint: caja_de_ahorros.py:caja_de_ahorros_repossessed_assets
+    work_pool: *local_pool
+    schedule: *daily
+    concurrency_limit:
+      limit: 5
+      collision_strategy: ENQUEUE
+
+  - name: reprocess-stale-links-deployment
+    description: A flow that reprocesses stale repossessed assets links and updates property data, deployed via YAML.
+    tags: 
+      - *scraping_tags
+      - maintenance
+    entrypoint: stale_links_processor.py:reprocess_stale_links
+    work_pool: *local_pool
+    schedule: *weekly
+    concurrency_limit:
+      limit: 3
       collision_strategy: ENQUEUE

@@ -152,7 +152,7 @@ async def fetch_all_urls():
     description="Scrape individual property page and extract all data.",
     task_run_name="global-bank-scrape-property-{link_data[id]}",
 )
-def scrape_property_page(link_data: Dict[str, str]) -> Optional[Dict]:
+def scrape_property_page_global_bank(link_data: Dict[str, str]) -> Optional[Dict]:
     """Scrape individual property page and extract all data."""
     logger = get_run_logger()
     link_id = link_data["id"]
@@ -443,7 +443,7 @@ async def global_bank_repossessed_assets():
 
         logger.info(f"Processing batch {i // batch_size + 1}: {len(batch)} links")
 
-        scraping_futures = scrape_property_page.map(batch)
+        scraping_futures = scrape_property_page_global_bank.map(batch)
 
         # Wait for all scraping tasks to complete and handle failures
         done, not_done = wait(scraping_futures)
