@@ -4,20 +4,25 @@ __generated_with = "0.17.7"
 app = marimo.App(width="columns", app_title="Banco General Repossessed Assets")
 
 with app.setup:
-    import os
+    import datetime
+    import re
     import time
-    from typing import Dict, List, Optional, Set
+    from typing import Dict, Optional
 
-    import aiohttp
     import marimo as mo
-    from prefect import flow, get_run_logger, task
-    from prefect.futures import wait
     import requests
     from bs4 import BeautifulSoup
-
-    import datetime
+    from prefect import flow, get_run_logger, task
+    from prefect.futures import wait
     from unidecode import unidecode
-    import re
+
+    from directus_tasks import (
+        add_new_links_to_directus,
+        get_existing_links_from_directus,
+        get_unscraped_links_from_directus,
+        mark_link_as_scraped,
+        save_property_data,
+    )
 
 
 @app.function
@@ -77,8 +82,7 @@ async def fetch_all_banco_general_urls():
                 no_properties = soup.select_one(".searched-properties")
                 if (
                     no_properties
-                    and "No se encontraron propiedades"
-                    in no_properties.get_text()
+                    and "No se encontraron propiedades" in no_properties.get_text()
                 ):
                     logger.info(f"No more properties found on page {page_num}")
                     break
@@ -87,14 +91,10 @@ async def fetch_all_banco_general_urls():
                 property_links = []
 
                 # Look for links within property cards
-                property_cards = soup.select(
-                    ".propery-style-6 a[target='_blank']"
-                )
+                property_cards = soup.select(".propery-style-6 a[target='_blank']")
                 for link_elem in property_cards:
                     href = str(link_elem.get("href", ""))
-                    if href and href.startswith(
-                        "https://www.bgeneral.com/property/"
-                    ):
+                    if href and href.startswith("https://www.bgeneral.com/property/"):
                         property_links.append(href)
 
                 # Alternative selector if the above doesn't work
@@ -105,9 +105,7 @@ async def fetch_all_banco_general_urls():
                         if (
                             href
                             and isinstance(href, str)
-                            and href.startswith(
-                                "https://www.bgeneral.com/property/"
-                            )
+                            and href.startswith("https://www.bgeneral.com/property/")
                         ):
                             property_links.append(href)
 
@@ -124,9 +122,7 @@ async def fetch_all_banco_general_urls():
                                 property_links.append(href_str)
 
                 if not property_links:
-                    logger.warning(
-                        f"No property links found on page {page_num}"
-                    )
+                    logger.warning(f"No property links found on page {page_num}")
                     break
 
                 page_links.extend(property_links)
@@ -142,9 +138,7 @@ async def fetch_all_banco_general_urls():
                 page_num += 1
                 continue
             except Exception as e:
-                logger.error(
-                    f"Unexpected error processing page {page_url}: {e}"
-                )
+                logger.error(f"Unexpected error processing page {page_url}: {e}")
                 page_num += 1
                 continue
 
@@ -162,138 +156,6 @@ async def fetch_all_banco_general_urls():
     logger.info(f"Total: Found {len(unique_all_links)} unique property links")
 
     return unique_all_links
-
-
-@app.function
-@task(
-    name="Get Existing Links from Directus - Banco General",
-    description="Get all existing links from Directus repossessed_assets_links collection for Banco General.",
-    task_run_name="banco-general-get-existing-links-directus",
-)
-async def get_existing_links_from_directus_banco_general() -> Set[str]:
-    """Get all existing links from Directus repossessed_assets_links collection for Banco General."""
-    logger = get_run_logger()
-    directus_url = os.environ["DIRECTUS_URL"]
-    directus_token = os.environ["DIRECTUS_TOKEN"]
-
-    headers = {
-        "Authorization": f"Bearer {directus_token}",
-        "Content-Type": "application/json",
-    }
-
-    async with aiohttp.ClientSession() as session:
-        # Get all items from the collection for banco-general
-        async with session.get(
-            f"{directus_url}/items/repossessed_assets_links?filter[company][_eq]=banco-general&limit=-1&fields=link",
-            headers=headers,
-        ) as response:
-            if response.status != 200:
-                error_text = await response.text()
-                logger.error(
-                    f"Failed to fetch existing links: {response.status} - {error_text}"
-                )
-                raise Exception(
-                    f"Directus API error: {response.status} - {error_text}"
-                )
-
-            data = await response.json()
-            existing_links = {item["link"] for item in data["data"]}
-            logger.info(
-                f"Found {len(existing_links)} existing links in Directus for Banco General"
-            )
-            return existing_links
-
-
-@app.function
-@task(
-    name="Add New Links to Directus - Banco General",
-    description="Add new links to Directus repossessed_assets_links collection for Banco General.",
-    task_run_name="banco-general-add-new-links-to-directus",
-)
-async def add_new_links_to_directus_banco_general(
-    new_links: List[str],
-) -> None:
-    """Add new links to Directus repossessed_assets_links collection for Banco General."""
-    logger = get_run_logger()
-    directus_url = os.environ["DIRECTUS_URL"]
-    directus_token = os.environ["DIRECTUS_TOKEN"]
-
-    headers = {
-        "Authorization": f"Bearer {directus_token}",
-        "Content-Type": "application/json",
-    }
-
-    if not new_links:
-        logger.info("No new links to add")
-        return
-
-    # Prepare batch insert data
-    items = [
-        {"link": link, "is_scraped": False, "company": "banco-general"}
-        for link in new_links
-    ]
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{directus_url}/items/repossessed_assets_links",
-            headers=headers,
-            json=items,
-        ) as response:
-            if response.status != 200:
-                error_text = await response.text()
-                logger.error(
-                    f"Failed to add new links: {response.status} - {error_text}"
-                )
-                raise Exception(
-                    f"Directus API error: {response.status} - {error_text}"
-                )
-
-            result = await response.json()
-            logger.info(
-                f"Added {len(result['data'])} new links to Directus for Banco General"
-            )
-
-
-@app.function
-@task(
-    name="Get Unscraped Links from Directus - Banco General",
-    description="Get unscraped links from Directus repossessed_assets_links collection for Banco General.",
-    task_run_name="banco-general-get-unscraped-links-directus",
-)
-async def get_unscraped_links_from_directus_banco_general() -> List[
-    Dict[str, str]
-]:
-    """Get unscraped links from Directus repossessed_assets_links collection for Banco General."""
-    logger = get_run_logger()
-    directus_url = os.environ["DIRECTUS_URL"]
-    directus_token = os.environ["DIRECTUS_TOKEN"]
-
-    headers = {
-        "Authorization": f"Bearer {directus_token}",
-        "Content-Type": "application/json",
-    }
-
-    async with aiohttp.ClientSession() as session:
-        # Get unscraped items with id and link
-        async with session.get(
-            f"{directus_url}/items/repossessed_assets_links?filter[company][_eq]=banco-general&filter[is_scraped][_eq]=false&limit=-1&fields=id,link",
-            headers=headers,
-        ) as response:
-            if response.status != 200:
-                error_text = await response.text()
-                logger.error(
-                    f"Failed to fetch unscraped links: {response.status} - {error_text}"
-                )
-                raise Exception(
-                    f"Directus API error: {response.status} - {error_text}"
-                )
-
-            data = await response.json()
-            unscraped_links = data["data"]
-            logger.info(
-                f"Found {len(unscraped_links)} unscraped links in Directus for Banco General"
-            )
-            return unscraped_links
 
 
 @app.function
@@ -333,9 +195,7 @@ def scrape_property_page_banco_general(
         property_data = {"link_id": link_id, "status": "active", "price": 0}
 
         # Extract property title
-        title_elem = soup.select_one(
-            ".fusion-page-title-captions h1.entry-title"
-        )
+        title_elem = soup.select_one(".fusion-page-title-captions h1.entry-title")
         if title_elem:
             property_data["title"] = title_elem.get_text(strip=True)
 
@@ -466,12 +326,8 @@ def scrape_property_page_banco_general(
                 pass  # Handles conversion failures (e.g., non-numeric string like "N/A")
 
         # Extract coordinates from latitude/longitude section
-        lat_elem = soup.select_one(
-            ".wrap_property_latitude .rem-single-field-value"
-        )
-        lon_elem = soup.select_one(
-            ".wrap_property_longitude .rem-single-field-value"
-        )
+        lat_elem = soup.select_one(".wrap_property_latitude .rem-single-field-value")
+        lon_elem = soup.select_one(".wrap_property_longitude .rem-single-field-value")
 
         if lat_elem and lon_elem:
             try:
@@ -516,9 +372,7 @@ def scrape_property_page_banco_general(
 
         # Extract images
         images = []
-        img_elems = soup.select(
-            ".fotorama-custom img.skip-lazy.rem-slider-image"
-        )
+        img_elems = soup.select(".fotorama-custom img.skip-lazy.rem-slider-image")
 
         for i, img in enumerate(img_elems, 1):
             src = img.get("src")
@@ -575,110 +429,6 @@ def _():
 
 
 @app.function
-@task(
-    name="Save Property Data - Banco General",
-    description="Save property data to Directus repossessed_assets_data collection.",
-    task_run_name="banco-general-save-property-{property_data[link_id]}",
-)
-async def save_property_data_banco_general(property_data: Dict) -> bool:
-    """Save property data to Directus repossessed_assets_data collection."""
-    logger = get_run_logger()
-    directus_url = os.environ["DIRECTUS_URL"]
-    directus_token = os.environ["DIRECTUS_TOKEN"]
-
-    headers = {
-        "Authorization": f"Bearer {directus_token}",
-        "Content-Type": "application/json",
-    }
-
-    # Extract images for separate storage
-    images = property_data.pop("images", [])
-    link_id = property_data["link_id"]
-
-    async with aiohttp.ClientSession() as session:
-        # Save main property data
-        async with session.post(
-            f"{directus_url}/items/repossessed_assets_data",
-            headers=headers,
-            json=property_data,
-        ) as response:
-            if response.status not in [200, 201]:
-                error_text = await response.text()
-                logger.error(
-                    f"Failed to save property data: {response.status} - {error_text}"
-                )
-                return False
-
-            # Save images if any
-            if images:
-                # Remove duplicate images based on source_url
-                seen_urls = set()
-                unique_images = []
-                for img in images:
-                    if img["source_url"] not in seen_urls:
-                        seen_urls.add(img["source_url"])
-                        unique_images.append(img)
-
-                image_items = [
-                    {
-                        "link_id": link_id,
-                        "source_url": img["source_url"],
-                        "title": img["title"],
-                    }
-                    for img in unique_images
-                ]
-
-                async with session.post(
-                    f"{directus_url}/items/repossessed_assets_images",
-                    headers=headers,
-                    json=image_items,
-                ) as img_response:
-                    if img_response.status not in [200, 201]:
-                        error_text = await img_response.text()
-                        logger.warning(
-                            f"Failed to save images: {img_response.status} - {error_text}"
-                        )
-
-            logger.info(f"Successfully saved property data for link {link_id}")
-
-            return True
-
-
-@app.function
-@task(
-    name="Mark Link as Scraped - Banco General",
-    description="Mark link as scraped in Directus.",
-    task_run_name="banco-general-mark-link-{link_id}-scraped",
-)
-async def mark_link_as_scraped_banco_general(link_id: str) -> bool:
-    """Mark link as scraped in Directus."""
-    logger = get_run_logger()
-    directus_url = os.environ["DIRECTUS_URL"]
-    directus_token = os.environ["DIRECTUS_TOKEN"]
-
-    headers = {
-        "Authorization": f"Bearer {directus_token}",
-        "Content-Type": "application/json",
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.patch(
-            f"{directus_url}/items/repossessed_assets_links/{link_id}",
-            headers=headers,
-            json={"is_scraped": True},
-        ) as response:
-            if response.status != 200:
-                error_text = await response.text()
-                logger.error(
-                    f"Failed to mark link as scraped: {response.status} - {error_text}"
-                )
-                return False
-
-            logger.info(f"Successfully marked link {link_id} as scraped")
-            return True
-
-
-@app.function
 def generate_flow_run_name_banco_general():
     date = datetime.datetime.now(datetime.timezone.utc)
     return f"banco_general_repossessed_assets_{date:%Y-%m-%d_%H-%M-%S}"
@@ -698,7 +448,7 @@ async def banco_general_repossessed_assets():
     scraped_links_set = set(scraped_links)
 
     # Get existing links from Directus
-    existing_links = await get_existing_links_from_directus_banco_general()
+    existing_links = await get_existing_links_from_directus("banco-general")
 
     # Compare and find differences
     new_links = list(scraped_links_set - existing_links)
@@ -706,12 +456,12 @@ async def banco_general_repossessed_assets():
     logger.info(f"Found {len(new_links)} new links to add for Banco General")
 
     # Sync with Directus
-    await add_new_links_to_directus_banco_general(new_links)
+    await add_new_links_to_directus(new_links, "banco-general")
 
     logger.info("Link sync completed successfully")
 
     # Get unscraped links
-    unscraped_links = await get_unscraped_links_from_directus_banco_general()
+    unscraped_links = await get_unscraped_links_from_directus("banco-general")
 
     if not unscraped_links:
         logger.info("No unscraped links found")
@@ -726,9 +476,7 @@ async def banco_general_repossessed_assets():
     for i in range(0, len(unscraped_links), batch_size):
         batch = unscraped_links[i : i + batch_size]
 
-        logger.info(
-            f"Processing batch {i // batch_size + 1}: {len(batch)} links"
-        )
+        logger.info(f"Processing batch {i // batch_size + 1}: {len(batch)} links")
 
         scraping_futures = scrape_property_page_banco_general.map(batch)
 
@@ -745,25 +493,19 @@ async def banco_general_repossessed_assets():
                         link_id = property_data["link_id"]
 
                         # Save property data
-                        save_success = await save_property_data_banco_general(
-                            property_data
-                        )
+                        save_success = await save_property_data(property_data)
 
                         if save_success:
                             # Mark link as scraped
-                            await mark_link_as_scraped_banco_general(link_id)
+                            await mark_link_as_scraped(link_id)
 
                             total_processed += 1
                         else:
-                            logger.warning(
-                                f"Failed to save data for link {link_id}"
-                            )
+                            logger.warning(f"Failed to save data for link {link_id}")
                     else:
                         logger.warning("No data scraped from successful task")
                 except Exception as e:
-                    logger.error(
-                        f"Error processing successful task result: {e}"
-                    )
+                    logger.error(f"Error processing successful task result: {e}")
             else:
                 # Handle failed tasks
                 logger.error(f"Task failed: {future.state}")
