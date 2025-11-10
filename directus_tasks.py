@@ -376,9 +376,10 @@ async def update_property_data(
             if images:
                 # Filter out images that already exist
                 unique_new_images = []
-                for img in images:
-                    existing_urls_set = set(existing_image_urls)
 
+                existing_urls_set = set(existing_image_urls)
+
+                for img in images:
                     if img["source_url"] not in existing_urls_set:
                         unique_new_images.append(img)
 
