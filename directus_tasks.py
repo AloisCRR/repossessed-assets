@@ -1,11 +1,3 @@
-# /// script
-# requires-python = ">=3.13"
-# dependencies = [
-#     "aiohttp==3.13.2",
-#     "prefect==3.5.0",
-# ]
-# ///
-
 import os
 from typing import Dict, List, Set, TypedDict
 

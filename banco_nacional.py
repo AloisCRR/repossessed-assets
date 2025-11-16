@@ -1,14 +1,3 @@
-# /// script
-# requires-python = ">=3.13"
-# dependencies = [
-#     "beautifulsoup4==4.14.2",
-#     "playwright==1.55.0",
-#     "prefect==3.5.0",
-#     "requests==2.32.5",
-#     "aiohttp==3.13.2",
-# ]
-# ///
-
 import marimo
 
 __generated_with = "0.17.7"
@@ -512,7 +501,7 @@ async def banco_nacional_repossessed_assets():
     )
 
 
-@app.cell(disabled=True)
+@app.cell
 async def _():
     await banco_nacional_repossessed_assets()
     return
