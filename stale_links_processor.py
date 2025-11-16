@@ -20,6 +20,8 @@ with app.setup:
     from banco_general import scrape_property_page_banco_general
     from global_bank import scrape_property_page_global_bank
     from banco_nacional import scrape_property_page_banco_nacional
+    from banesco import scrape_property_page_banesco
+    from scotiabank import scrape_property_page_scotiabank
 
 
 @app.function
@@ -60,9 +62,7 @@ async def reprocess_stale_links():
 
             try:
                 if not link or not link_id:
-                    logger.warning(
-                        f"Missing link or link_id for company {company}"
-                    )
+                    logger.warning(f"Missing link or link_id for company {company}")
                     total_failed += 1
                     continue
 
@@ -73,25 +73,19 @@ async def reprocess_stale_links():
                 scraped_data = None
 
                 if company == "caja-de-ahorros":
-                    scraped_data = scrape_property_page_caja_de_ahorros(
-                        link_to_scrape
-                    )
+                    scraped_data = scrape_property_page_caja_de_ahorros(link_to_scrape)
                 elif company == "banco-general":
-                    scraped_data = scrape_property_page_banco_general(
-                        link_to_scrape
-                    )
+                    scraped_data = scrape_property_page_banco_general(link_to_scrape)
                 elif company == "global-bank":
-                    scraped_data = scrape_property_page_global_bank(
-                        link_to_scrape
-                    )
+                    scraped_data = scrape_property_page_global_bank(link_to_scrape)
                 elif company == "banco-nacional":
-                    scraped_data = scrape_property_page_banco_nacional(
-                        link_to_scrape
-                    )
+                    scraped_data = scrape_property_page_banco_nacional(link_to_scrape)
+                elif company == "banesco":
+                    scraped_data = scrape_property_page_banesco(link_to_scrape)
+                elif company == "scotiabank":
+                    scraped_data = scrape_property_page_scotiabank(link_to_scrape)
                 else:
-                    logger.warning(
-                        f"No scraper available for company: {company}"
-                    )
+                    logger.warning(f"No scraper available for company: {company}")
                     total_failed += 1
                     continue
 
@@ -109,9 +103,7 @@ async def reprocess_stale_links():
 
                 scraped_data_id = scrape_data_list[0].get("id", "")
                 if not scraped_data_id:
-                    logger.error(
-                        f"No property data ID found for link {link_id}"
-                    )
+                    logger.error(f"No property data ID found for link {link_id}")
                     total_failed += 1
                     continue
 
@@ -134,24 +126,16 @@ async def reprocess_stale_links():
                         # Mark link as fresh
                         mark_success = await mark_link_as_fresh(link_id)
                         if mark_success:
-                            logger.info(
-                                f"Successfully processed link {link_id}"
-                            )
+                            logger.info(f"Successfully processed link {link_id}")
                             total_processed += 1
                         else:
-                            logger.warning(
-                                f"Failed to mark link {link_id} as fresh"
-                            )
+                            logger.warning(f"Failed to mark link {link_id} as fresh")
                             total_failed += 1
                     else:
-                        logger.warning(
-                            f"Failed to update data for link {link_id}"
-                        )
+                        logger.warning(f"Failed to update data for link {link_id}")
                         total_failed += 1
                 except Exception as update_error:
-                    logger.error(
-                        f"Update failed for link {link_id}: {update_error}"
-                    )
+                    logger.error(f"Update failed for link {link_id}: {update_error}")
                     total_failed += 1
 
             except Exception as link_error:
